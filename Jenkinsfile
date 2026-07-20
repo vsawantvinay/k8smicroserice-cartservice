@@ -105,7 +105,7 @@ pipeline {
         
         stage('create container') {
             steps {
-                sh 'docker run -itd -p 9090:9090 --name ${container_name} vsawantvinay/${IMAGE}:${Image_Tag}'
+                sh 'docker run -itd -p 9091:9091 --name ${container_name} vsawantvinay/${IMAGE}:${Image_Tag}'
             }
         }
 
