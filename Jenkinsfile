@@ -96,8 +96,8 @@ pipeline {
         stage('remove container') {
             steps {
                 sh '''
-                docker stop myproject || true 
-                docker rm myproject || true 
+                docker stop ${container_name} || true 
+                docker rm ${container_name} || true 
                 '''
 
             }
