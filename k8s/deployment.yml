@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: mycart
-        image: vsawantvinay/my-devsecops-img:v1
+        image: vsawantvinay/my-cartservice-img:2558bfb
         ports:
         - containerPort: 9091
 ---
