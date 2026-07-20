@@ -1,0 +1,141 @@
+pipeline {
+    agent any
+    
+    environment {
+        IMAGE = 'my-devsecops-img'
+        container_name = 'myproject'
+        TRIVY_CACHE_DIR = '.trivycache' 
+            }
+
+    stages {
+        stage('Git-Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/vsawantvinay/springboot-jenkins-docker-k8s-project.git'
+            }
+        }
+
+        stage('Set Image Tag') {
+            steps {
+                script {
+                    env.Image_Tag = env.GIT_COMMIT.take(7)
+
+                    echo "Image_Tag = ${env.Image_Tag}"
+                }
+            }
+        }
+        
+        
+            stage('Resolve Maven Dependencies') { 
+                steps { 
+                    sh 'mvn -B dependency:resolve '
+                    }
+                } 
+            
+            stage('Trivy FS Scan') {
+                steps {
+                sh '''
+                mkdir -p reports
+                trivy fs . --severity HIGH,CRITICAL --exit-code 0 --format sarif -o reports/trivy-fs.sarif
+                '''
+            }
+        }
+        
+        stage('mvn build') {
+            steps {
+                sh 'mvn clean verify'
+            }
+        }
+        
+        stage('mvn test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+        
+        stage('sonar-scan') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+               sh "/usr/bin/mvn clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=myproject -Dsonar.projectName='myproject'"
+                }
+            }
+        }
+        
+        stage('Quality Gate') {
+            steps {
+                waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
+            }
+        }
+        
+        stage('docker build') {
+            steps {
+                sh 'docker build -t ${IMAGE} .'
+            }
+        }
+        
+        stage('Trivy Image Scan') {
+            steps {
+                sh '''
+                trivy image --severity HIGH,CRITICAL --exit-code 0 --format sarif -o reports/trivy-image.sarif ${IMAGE}
+                '''
+            }
+        }
+        
+        stage('push docker image') {
+            steps {
+                script {
+                withDockerRegistry(credentialsId: 'docker-cred') {
+                sh '''
+                docker tag ${IMAGE} vsawantvinay/${IMAGE}:${Image_Tag}
+                docker push vsawantvinay/${IMAGE}:${Image_Tag}
+                '''
+                    }
+                }
+            }
+        }
+        
+        stage('remove container') {
+            steps {
+                sh '''
+                docker stop myproject || true 
+                docker rm myproject || true 
+                '''
+
+            }
+        }
+        
+        stage('create container') {
+            steps {
+                sh 'docker run -itd -p 9090:9090 --name ${container_name} vsawantvinay/${IMAGE}:${Image_Tag}'
+            }
+        }
+
+        stage('Update Manifest') {
+            steps {
+                sh """
+                sed -i 's|image: .*|image: vsawantvinay/${IMAGE}:${Image_Tag}|g'  k8s/deployment.yml
+				cat k8s/deployment.yml
+                """ 
+            }
+        }
+
+        stage('Push Updated Manifest') {
+            steps {
+			withCredentials([usernamePassword(
+            credentialsId: 'git-cred',
+            usernameVariable: 'GIT_USERNAME',
+            passwordVariable: 'GIT_PASSWORD'
+        )]) {
+
+	sh """        
+    git config user.email "vinayak.sawant83@gmail.com"
+    git config user.name "vinay"
+    git add k8s/deployment.yml
+    git commit -m "Updated image tag to ${IMAGE_TAG}"
+    git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/vsawantvinay/springboot-jenkins-docker-k8s-project.git HEAD:main           
+    """
+            
+		}
+	}
+}
+    }
+}
