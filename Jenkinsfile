@@ -2,15 +2,15 @@ pipeline {
     agent any
     
     environment {
-        IMAGE = 'my-devsecops-img'
-        container_name = 'myproject'
+        IMAGE = 'my-cartservice-img'
+        container_name = 'mycarservice'
         TRIVY_CACHE_DIR = '.trivycache' 
             }
 
     stages {
         stage('Git-Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/vsawantvinay/springboot-jenkins-docker-k8s-project.git'
+                git branch: 'main', url: 'https://github.com/vsawantvinay/k8smicroserice-cartservice.git'
             }
         }
 
@@ -55,7 +55,7 @@ pipeline {
         stage('sonar-scan') {
             steps {
                 withSonarQubeEnv('sonar-server') {
-               sh "/usr/bin/mvn clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=myproject -Dsonar.projectName='myproject'"
+               sh "/usr/bin/mvn clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=k8smicroserice-cartservice -Dsonar.projectName='k8smicroserice-cartservice'"
                 }
             }
         }
